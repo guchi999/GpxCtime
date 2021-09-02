@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>GPXコースタイム見積</title>
+	<script>
+	const UpSpd1 = 3.15, DnSpd1 = 3.53;
+	const UpSpd2 = 1.96, DnSpd2 = 2.73;
+	const UpSpd3 = 1.04, DnSpd3 = 1.79;
+	const UpSpd4 = 0.62, DnSpd4 = 1.19;
+	const UpRng1 = 20, DnRng1 = -30;
+	const UpRng2 = 40, DnRng2 = -50;
+	const UpRng3 = 80, DnRng3 = -80;
+
+	const DLtimeout = 10000;
+	var SlpRng = [ UpRng3/100, UpRng2/100, UpRng1/100, 0, DnRng1/100, DnRng2/100, DnRng3/100 ]; // 傾斜レンジ配列
+	var SpdVal = [ UpSpd4/3.6, UpSpd3/3.6, UpSpd2/3.6, UpSpd1/3.6, DnSpd1/3.6, DnSpd2/3.6, DnSpd3/3.6, DnSpd4/3.6 ]; // 速度(m/s)配列
+	</script>
+
+	<style>
+	.marker-pin {
+	  width: 28px;
+	  height: 28px;
+	  border-radius: 50% 50% 50% 0;
+	  background: #008000;
+	  position: absolute;
+	  transform: rotate(-45deg);
+	  left: 50%;
+	  top: 50%;
+	  margin: -15px 0 0 -15px;
+	}
+	.marker-pin::after {
+	 content: '';
+	 width: 19px;
+	 height: 19px;
+	 margin: 5px 0 0 4px;
+	 background: #ffffe0;
+	 position: absolute;
+	 border-radius: 50%;
+	}
+	.custom-div-icon i {
+	 position: absolute;
+	 width: 20px;
+	 font-size: 20px;
+	 left: 0;
+	 right: 5px;
+	 margin: 5px auto;
+	 text-align: center;
+	}
+	</style>
+	
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==" crossorigin=""/>
+	<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA==" crossorigin=""></script>
+
+</head>
+<body>
+	<span>【GPXコースタイム見積 V2.0】<span><br>
+	<span><b>画面にGPXファイルをドロップするか、ボタンを押してファイルを選択してください。</b></span>
+	<input type="file" multiple id="selfile"><br>
+	
+	<div id="mapWin1" style="width:700px;height:500px"></div>
+
+	<span style="color:mediumblue">【順ルート】</span>
+	<span id="message1" style="color:olivedrab"> </span><br>
+	<span id="message2"> </span><br>
+	<span style="color:mediumblue">【逆ルート】</span>
+	<span id="message3" style="color:olivedrab"> </span><br>
+	<span id="message4"> </span><br>
+	<br>
+	<div style="float:left;">
+	<div style="float:left;">
+	<span><b style="color:mediumblue">＠&nbsp;</b>マーカー名称</span><br>
+	<input type="text" id="start_nam" size="20" value="Start"></div>
+	<textarea id="txt_area" rows="5" cols="20"></textarea>
+	</div>
+	<span></span><br>
+	<input type="text" id="goal_nam" size="20" value="Goal"><br clear="left"><br>
+
+	<form name="selbttn1">
+		<span>&nbsp;　区間距離の表示：</span>
+		<input type="radio" name="SpltDist" value="n" checked><span>&nbsp;しない</span>
+		<input type="radio" name="SpltDist" value="y" ><span>&nbsp;する</span>
+	</form>
+	<br>
+	<span><b style="color:mediumblue">＠&nbsp;</b>ルートを</span>
+	<input type="text" id="filet_nam" size="15" value=""><span>の名前でKMLファイルに</span>
+	<a id="getLocal" href="#" onClick="saveFile()">
+	<span style="border: 1px solid #000000; background-color: #dcdcdc">&nbsp;出力&nbsp;</span></a>
+	<form name="selbttn2">
+		<span>&nbsp;　マーカーのサイズ：</span>
+		<input type="radio" name="Icon" value=-0.5><span>&nbsp;小</span>
+		<input type="radio" name="Icon" value=0 checked><span>&nbsp;標準</span>
+		<input type="radio" name="Icon" value=0.5 ><span>&nbsp;大</span>
+	</form>
+	<br>
+
+	<span><strong><b style="color:mediumblue">＠&nbsp;</b></strong>速度設定（値を変更したら再表示ボタンを押してください）</span><br>
+	<div style="float:left; border: solid 1px #000;">
+		<div style="float:left;">
+			<div align="right">&nbsp;&nbsp;<span id="UpRng1"></span>&nbsp;&nbsp;<br></div>
+			&nbsp;&nbsp;<span id="UpRng2"></span>&nbsp;&nbsp;<br>
+			&nbsp;&nbsp;<span id="UpRng3"></span>&nbsp;&nbsp;<br>
+			&nbsp;&nbsp;<span id="UpRng4"></span>&nbsp;&nbsp;<br>
+		</div>
+		<input type="number" id="UpSpd1" size="6" step="0.01" style="width:4em;">km/h&nbsp;&nbsp;&nbsp;<br>
+		<input type="number" id="UpSpd2" size="6" step="0.01" style="width:4em;">km/h&nbsp;&nbsp;&nbsp;<br>
+		<input type="number" id="UpSpd3" size="6" step="0.01" style="width:4em;">km/h&nbsp;&nbsp;&nbsp;<br>
+		<input type="number" id="UpSpd4" size="6" step="0.01" style="width:4em;">km/h&nbsp;&nbsp;&nbsp;<br>
+	</div>
+
+	<div style="float:left; border: solid 1px #000;">
+		<div style="float:left;">
+		<div align="right">&nbsp;&nbsp;<span id="DnRng1"></span>&nbsp;&nbsp;<br></div>
+			&nbsp;&nbsp;<span id="DnRng2"></span>&nbsp;&nbsp;<br>
+			&nbsp;&nbsp;<span id="DnRng3"></span>&nbsp;&nbsp;<br>
+			&nbsp;&nbsp;<span id="DnRng4"></span>&nbsp;&nbsp;<br>
+		</div>
+		<input type="number" id="DnSpd1" size="6" step="0.01" style="width:4em;">km/h&nbsp;&nbsp;&nbsp;<br>
+		<input type="number" id="DnSpd2" size="6" step="0.01" style="width:4em;">km/h&nbsp;&nbsp;&nbsp;<br>
+		<input type="number" id="DnSpd3" size="6" step="0.01" style="width:4em;">km/h&nbsp;&nbsp;&nbsp;<br>
+		<input type="number" id="DnSpd4" size="6" step="0.01" style="width:4em;">km/h&nbsp;&nbsp;&nbsp;<br>
+	</div>
+	<br clear="left">
+	<input type="button" onclick="chg_spd()" value="再表示">
+	<br><br>
+
+<script>
+
+var readTxt = ""; // 入力ファイル
+var writeFilNam = ""; // 拡張子無しファイル名
+var trkLinArr; // trkptデータ配列  [ Lat, Lon, ele, ピクセル座標, タイル座標X-Y(文字列), タイルele ]
+var tilesArr; // 必要標高タイルのリスト [ タイルX座標-タイルY座標, ... ]
+var tileObj = {}; // 標高タイルデータ { タイルX座標-タイルY座標: タイルデータtxt, ... }
+var DisEldTim = [], DisEldTimRev =[]; // trkpt毎の前trkptの距離、標高差、所用時間の配列 [ [Dist, Eled, ptTim], ... ]
+var pointer = 0;
+var startTime; // for deug 
+
+var zoomLevel;
+var LinePlot = []; // 軌跡表示用緯度経度 [ [Lat1, Lon1], [Lat2, Lon2], ...  [LatN, LonN] ];	
+var mymap;
+var markNum = 0; // マーカー連番用
+var markLis = {}; // マーカーのリスト { Mark番号:[マーカー名, trkLinArrインデックス], ....}
+var SDmarkLis = []; // ソートしたマーカーリスト
+
+window.onload = function() { // 初期画面の設定
+	document.getElementById("UpRng1").innerHTML = "0m ～ " + UpRng1 + "/100m";
+	document.getElementById("UpRng2").innerHTML = UpRng1 + "/100m ～ " + UpRng2 + "/100m";
+	document.getElementById("UpRng3").innerHTML = UpRng2 + "/100m ～ " + UpRng3 + "/100m";
+	document.getElementById("UpRng4").innerHTML = UpRng3 + "/100m 以上";
+	document.getElementById("UpSpd1").value = UpSpd1;
+	document.getElementById("UpSpd2").value = UpSpd2;
+	document.getElementById("UpSpd3").value = UpSpd3;
+	document.getElementById("UpSpd4").value = UpSpd4;
+	document.getElementById("DnRng1").innerHTML = "0m ～ " + DnRng1 + "/100m";
+	document.getElementById("DnRng2").innerHTML = DnRng1 + "/100m ～ " + DnRng2 + "/100m";
+	document.getElementById("DnRng3").innerHTML = DnRng2 + "/100m ～ " + DnRng3 + "/100m";
+	document.getElementById("DnRng4").innerHTML = DnRng3 + "/100m 以上";
+	document.getElementById("DnSpd1").value = DnSpd1;
+	document.getElementById("DnSpd2").value = DnSpd2;
+	document.getElementById("DnSpd3").value = DnSpd3;
+	document.getElementById("DnSpd4").value = DnSpd4;
+	DrwMapIni()
+}
+
+//ファイル読み込み
+
+// ドラッグ&ドロップ ファイル入力
+const dropArea = document.body; // ドラッグ&ドロップを許可する領域
+dropArea.addEventListener("dragover", event => {
+	event.preventDefault();
+	event.dataTransfer.dropEffect = "copy";
+});
+dropArea.addEventListener("drop", event => {
+   event.preventDefault();
+   var files = event.dataTransfer.files;
+   getFiles(files);
+});
+function getFiles(files){
+	for (let file of files){
+		var reader = new FileReader();
+		reader.readAsText(file); 
+		reader.onload = event => {
+			readTxt = event.target.result;
+			writeFilNam = file.name.split(".")[0];
+			after_file_read(readTxt, writeFilNam);
+		}
+	}
+}
+
+// ファイル選択ボタン入力
+var obj1 = document.getElementById("selfile");
+obj1.addEventListener("change",function(evt){
+	var file = evt.target.files;
+  // ファイルの情報を取得
+	var input = document.querySelector("#selfile").files[0];
+	var reader = new FileReader();  // FileReaderの作成
+	reader.readAsText(file[0]);  // テキスト形式で読み込む
+  // 読込終了後
+	reader.onload = function(){
+		readTxt = reader.result; // 読み込んだテキストを readTxt に入れる
+		writeFilNam = input.name.split( "." )[0];
+		after_file_read(readTxt, writeFilNam);
+/*
+//		document.getElementById("start_nam").value = "Start";
+//		document.getElementById("goal_nam").value = "Goal";
+		document.getElementById("filet_nam").value = writeFilNam;
+		pointer = readTxt.indexOf("<gpx");
+		if (pointer !== -1 ){
+			trkLinArr = make_trkLinAry_reduce();
+			tilesArr = make_DLtile_lis(trkLinArr);
+			tile_download(tilesArr);
+			LinePlot = make_linePlot(trkLinArr);
+			DrwMap();
+		}else{
+			alert("ファイル1はGPXファイルではありません");
+			writeFilNam = "";
+			document.getElementById("filet_nam").value = "";
+		}	
+*/
+	 }
+},false);
+
+
+function after_file_read(readTxt, writeFilNam){
+	document.getElementById("start_nam").value = "Start";
+	document.getElementById("goal_nam").value = "Goal";
+	document.getElementById("filet_nam").value = writeFilNam;
+	let fieChk = 0;
+	let pointer = readTxt.indexOf("</gpx>");
+	( pointer !== -1 ) ? fieChk = fieChk: fieChk++;
+	pointer = readTxt.indexOf("<gpx");
+	( pointer !== -1 ) ? fieChk = fieChk: fieChk++;
+	if (fieChk === 0 ){
+//		alert("ファイルはGPXファイルです");
+		trkLinArr = make_trkLinAry_reduce();
+		tilesArr = make_DLtile_lis(trkLinArr);
+		tile_download(tilesArr);
+		LinePlot = make_linePlot(trkLinArr);
+		DrwMap();
+	}else{
+		alert( GpxFileName + "はGPXファイルではありません");
+			writeFilNam = "";
+			document.getElementById("filet_nam").value = "";
+	}
+}
+
+function DrwMapIni(){
+// 初期画面地図表示
+	mymap = L.map('mapWin1').setView([38, 137], 4 );
+	L.tileLayer(
+		"https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
+		{attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',maxZoom: 18}
+	).addTo(mymap);
+}
+
+function DrwMap(){
+// 地図表示 (マーカークリックアクション）
+	if (mymap) { // 地図クリア
+		mymap.remove();
+		mymap = null;
+		markNum = 0;
+		markLis = [];
+		document.getElementById("txt_area").value = "";
+	}
+	mymap = L.map('mapWin1');
+	L.tileLayer(
+		"https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
+		{attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',maxZoom: 18}
+	).addTo(mymap);
+	mymap.on('click', onMapClick);
+  // LinePlotのデータをpolylineオブジェクトで地図に表示
+	var polyline = L.polyline(LinePlot, { color: 'red', weight: 5 }).addTo(mymap);
+	mymap.fitBounds(polyline.getBounds()); // 地図の表示範囲をLinePlotに合わせて変更
+  // start goal をdivIconオブジェクトのマーカーで地図に表示
+  // goalマーカー
+	let MP = LinePlot[ LinePlot.length -1 ].slice();
+	let goalicon = L.divIcon({
+        className: 'custom-div-icon',
+        html: "<div style='background-color:#0000cd;' class='marker-pin'></div><i class='material-icons'>G</i>",
+        iconSize: [30, 42],
+        iconAnchor: [14, 40]
+	});
+	L.marker([ MP[0], MP[1] ],{title:"goal", icon: goalicon }).addTo(mymap);
+  // startマーカー
+	MP = LinePlot[0].slice();
+	let starticon = L.divIcon({
+        className: 'custom-div-icon',
+        html: "<div style='background-color:#0000cd;' class='marker-pin'></div><i class='material-icons'>S</i>",
+        iconSize: [30, 42],
+        iconAnchor: [14, 40]
+	});
+	L.marker([ MP[0], MP[1] ], { title:"Start", icon: starticon }).addTo(mymap);
+
+  // クリック点近傍のLinePlot点にマーカーを追加、マーカーのclickイベントでonMarkerClick関数を呼び出し削除
+	function onMapClick(e) {
+		markNum++;
+		chg_markTxt(markLis);
+		lat = e.latlng.lat; lng = e.latlng.lng; //クリック位置の緯度経度を取得
+		let nearLn = nearPt_trkLinArr(lat, lng); // クリック位置に一番近い trkLinArr の緯度経度、trkLinArrのインデックスを取得
+		lat = nearLn[0]; lng = nearLn[1];
+		maN = "Mark" + markNum;
+		markLis[maN] = [ maN, nearLn[2] ];
+		let md = L.marker([lat,lng],{title:maN}).on('click', onMarkerClick).addTo(mymap);
+		dsp_markLis(markLis);
+	}
+	
+  // クリックされたマーカーを削除
+	function onMarkerClick(e) {
+		chg_markTxt(markLis);
+		mymap.removeLayer(e.target);
+		let delKey = e.target.options.title;
+		delete markLis[ delKey ];
+		dsp_markLis(markLis);
+	}
+}
+
+function chg_markTxt(markLis){
+// markLisのポイント名をテキストボックスの文字列に置き換える
+	let keys = Object.keys(markLis); // markLisオブジェクトのキーの配列
+	if ( keys.length > 1 ){
+		markTxt = document.getElementById("txt_area").value;
+		let tmp = [];
+		for ( let i = 0; i < keys.length; i++ ){
+			let mk = markLis[ keys[i] ];
+			mk[0] = keys[i];
+			tmp.push(mk);
+		}
+		tmp.sort( (a, b) => { return a[a.length - 1] - b[b.length -1] } );
+		let txtArr = markTxt.split("\n");
+		for (let j = 0; j < tmp.length; j++ ){
+			if ( txtArr[j] != "" ){
+				markLis[ tmp[j][0] ] = [ txtArr[j], tmp[j][1] ];
+			}
+		}
+//		console.log("chg_markTxt tmp = " + tmp);  // for debug
+	}
+}
+
+function dsp_markLis(markLis){
+// テキストボックスにmarkLisのポイント名を表示、マーカーリストでコースタイムを表示
+	let tmp = [];	
+	let keys = Object.keys(markLis);
+	if ( keys.length < 1 ){
+		document.getElementById("txt_area").value = "";
+	}else{
+		for ( let i = 0; i < keys.length; i++ ){
+			tmp.push( markLis[ keys[i] ] );
+		}
+		tmp.sort( (a, b) => { return a[a.length - 1] - b[b.length -1] } );
+		let txttmp = "";
+		for ( let i = 0; i < tmp.length; i++ ){
+			txttmp += tmp[i][0] + "\n";
+		}
+		document.getElementById("txt_area").value = txttmp;
+	}
+	SDmarkLis = tmp.slice();
+	splTim_forw(tmp);
+	splTim_rev(tmp);
+}
+
+function nearPt_trkLinArr(lat, lon){
+// クリックポイントに最も近いLinePlot点の緯度経度を求める
+// 引数：緯度、経度  返値：近傍点の緯度、経度、インデックス
+	let chkPt = trkLinArr[0].slice();
+	let nearPt = [ chkPt[0], chkPt[1] ];
+	let d1 = Math.abs( nearPt[0] - lat ) ** 2 + Math.abs( nearPt[1] - lon ) ** 2;
+	for ( let i=1; i < trkLinArr.length; i++ ){
+		chkPt = trkLinArr[i].slice();
+		let d2 = Math.abs( chkPt[0] -lat ) ** 2 + Math.abs( chkPt[1] - lon ) ** 2;
+		if (d1 > d2 ){
+			nearPt = [ chkPt[0], chkPt[1], i ];
+			d1 = d2;
+		}
+	}
+	return nearPt;
+}
+
+function make_linePlot(trkLinArr){
+// 地図表示用に緯度経度の配列(LinePlot)作成
+// 引数：（トラックラインデータ配列）返値：必要タイルのリスト配列 LinePlot
+	let LinePlot = [];
+	for ( let i = 0; i < trkLinArr.length; i++ ){
+		let ptArr = trkLinArr[i].slice();
+		ptArr.length = 2;
+		LinePlot.push( ptArr );
+	}
+	return LinePlot;
+}
+
+function splTim_forw(mkLis){
+// マーカー間の距離、標高差、時間を積算（順方向）
+	let SpltDist = document.selbttn1.SpltDist.value;
+	let distD = "";
+	let result = [];
+	let outTxt = document.getElementById("start_nam").value + " &rArr;(";
+	let goalTxt = document.getElementById("goal_nam").value;
+	if ( mkLis.length == 0 ){
+		result = calc_TimDisEla_forw( 0, trkLinArr.length-1 );
+		( SpltDist == "n" ) ? distD = "": distD = "/" + result[2] + "km";
+		outTxt += result[0] + ":" + ('00'+result[1]).slice(-2) + distD + ")&rArr; ";
+	}else{
+		for ( let i = 0; i < mkLis.length; i++ ){
+			( i == 0 ) ? result = calc_TimDisEla_forw( 0, mkLis[i][1]): result = calc_TimDisEla_forw( mkLis[i-1][1], mkLis[i][1] );
+			( SpltDist == "n" ) ? distD = "": distD = "/" + result[2] + "km";
+			outTxt += result[0] + ":" + ('00'+result[1]).slice(-2) + distD + ")&rArr; " + mkLis[i][0] + " &rArr;(" ;
+		}
+		result = calc_TimDisEla_forw( mkLis[ mkLis.length-1 ][1], trkLinArr.length-1 );
+		( SpltDist == "n" ) ? distD = "": distD = "/" + result[2] + "km";
+		outTxt += result[0] + ":" + ('00'+result[1]).slice(-2) + distD + ")&rArr; ";
+	}
+	outTxt += goalTxt;
+	document.getElementById("message2").innerHTML = outTxt;
+}
+
+function splTim_rev(mkLis){
+// マーカー間の距離、標高差、時間を積算（逆方向）
+	let SpltDist = document.selbttn1.SpltDist.value;
+	let distD = "";
+	let result = [];
+	let outTxt = document.getElementById("goal_nam").value + " &rArr;(";
+	let goalTxt = document.getElementById("start_nam").value;
+	if ( mkLis.length == 0 ){
+		result = calc_TimDisEla_rev( 0, trkLinArr.length-1 );
+		( SpltDist == "n" ) ? distD = "": distD = "/" + result[2] + "km";
+		outTxt += result[0] + ":" + ('00'+result[1]).slice(-2) + distD + ")&rArr; ";
+	}else{
+		for ( let i =  mkLis.length ; i > 0; i-- ){ // mkLisはindexの小さい順
+			( i == mkLis.length ) ? result = calc_TimDisEla_rev( mkLis[i-1][1], trkLinArr.length-1 ): result = calc_TimDisEla_rev( mkLis[i-1][1], mkLis[i][1] );
+			( SpltDist == "n" ) ? distD = "": distD = "/" + result[2] + "km";
+			outTxt += result[0] + ":" +  ('00'+result[1]).slice(-2) + distD +  ")&rArr; " + mkLis[i-1][0] + " &rArr;(" ;
+		}
+		result = calc_TimDisEla_rev( 0, mkLis[0][1]);
+		( SpltDist == "n" ) ? distD = "": distD = "/" + result[2] + "km";
+		outTxt += result[0] + ":" +  ('00'+result[1]).slice(-2) + distD + ")&rArr; ";
+	}
+	outTxt += goalTxt;
+	document.getElementById("message4").innerHTML = outTxt;
+}
+
+function afterDL(){ // 標高タイルダウンロード後の処理
+	add_ele_trkLin();
+	dsp_init();
+}
+
+function dsp_init(){
+	make_DisEldTim();
+	let result = calc_TimDisEla_forw( 0, trkLinArr.length-1 );
+	let dTxt = "合計" + result[0] + "時間" + ('00'+result[1]).slice(-2) + "分　";
+	dTxt += "距離:" + result[2] + "Km　累積標高(上り)" + result[3] + "m　累積標高(下り)" + result[4] + "m";
+	document.getElementById("message1").innerHTML = dTxt;
+	document.getElementById("message2").innerHTML = "";
+	result = calc_TimDisEla_rev( 0, trkLinArr.length-1 );
+	dTxt = "合計" + result[0] + "時間" + ('00'+result[1]).slice(-2) + "分　";
+	dTxt += "距離:" + result[2] + "Km　累積標高(上り)" + result[3] + "m　累積標高(下り)" + result[4] + "m";
+	document.getElementById("message3").innerHTML = dTxt;
+	document.getElementById("message4").innerHTML = "";
+}
+
+function calc_TimDisEla_forw( bgn, end ){ 
+// 指定ポイント間の距離、標高差、時間を積算（順方向）
+// 引数： 始点、終点（DisEldTim のインデックス）  返値：時、分、距離、累積標高（＋/ー）配列
+	let DisTmp = 0; let ElePTp = 0; let EleNTp = 0; let TimTmp = 0;
+	for ( let i = bgn + 1 ; i < end + 1; i++ ){
+		DisTmp += DisEldTim[ i ][0];
+		( DisEldTim[ i ][1] >= 0 ) ? ElePTp += DisEldTim[ i ][1]: EleNTp += DisEldTim[ i ][1];
+		TimTmp +=  DisEldTim[ i ][2];
+	}
+	TimTmp = Math.round( TimTmp );
+	let ss = TimTmp % 60;
+	let mm = ( ( TimTmp - ss ) / 60 ) % 60;
+	let hh = Math.floor( (TimTmp - ss - mm * 60) / 3600 );
+	mm += Math.round( ss / 60 );
+	DisTmp = Math.round( DisTmp / 10 ) / 100;
+	ElePTp = Math.round( ElePTp * 10 ) / 10;
+	EleNTp = Math.round( Math.abs(EleNTp) * 10 ) / 10;
+	return [ hh, mm, DisTmp, ElePTp, EleNTp ];
+}
+
+function calc_TimDisEla_rev( bgn, end ){
+// 指定ポイント間の距離、標高差、時間を積算（順方向）
+// 引数： 始点、終点（DisEldTim のインデックス）  返値：時、分、距離、累積標高（＋/ー）配列
+	let DisTmp = 0; let ElePTp = 0; let EleNTp = 0; let TimTmp = 0;
+	for ( let i = end - 1 ; i > bgn - 1 ; i-- ){
+		DisTmp += DisEldTimRev[ i ][0];
+		( DisEldTimRev[ i ][1] >= 0 ) ? ElePTp += DisEldTimRev[ i ][1]: EleNTp += DisEldTimRev[ i ][1];
+		TimTmp +=  DisEldTimRev[ i ][2];
+	}
+	TimTmp = Math.round( TimTmp );
+	let ss = TimTmp % 60;
+	let mm = ( ( TimTmp - ss ) / 60 ) % 60;
+	let hh = Math.floor( (TimTmp - ss - mm * 60) / 3600 );
+	mm += Math.round( ss / 60 );
+	DisTmp = Math.round( DisTmp / 10 ) / 100;
+	ElePTp = Math.round( ElePTp * 10 ) / 10;
+	EleNTp = Math.round( Math.abs(EleNTp) * 10 ) / 10;
+	return [ hh, mm, DisTmp, ElePTp, EleNTp ];
+}
+
+function make_DisEldTim(){
+// trkLinArr の各trkptで前trkptの距離、標高差、所用時間の配列作成(順/逆方向)
+// 引数：なし  返値：なし(DisEldTim、DisEldTimRevの配列)
+	DisEldTim = []; DisEldTimRev =[];
+	let trkptDat1 = [], trkptDat2 = [];
+	let ptTimF = 0; let ptTimR = 0;
+	let DET = [0, 0, 0];
+	DisEldTim.push( DET );
+	trkptDat1 = trkLinArr[0].slice();
+	for ( let i = 1; i < trkLinArr.length; i++){
+		trkptDat2 = trkLinArr[i].slice();
+		let PrevIdo = trkptDat1[0]; let PrevKeido = trkptDat1[1];
+		let CurIdo  = trkptDat2[0]; let CurKeido  = trkptDat2[1];
+		let Dist = hubeny(PrevIdo, PrevKeido, CurIdo, CurKeido); // 前trkptとの距離
+	  // 順方向（DisEldTim）
+		let EledF = trkptDat2[6] - trkptDat1[6];
+		let BaroF =  EledF / Dist;
+		let ptSpdF = 0;
+		for ( let j = 0; j < SlpRng.length; ++j ){ // 昇降値と傾斜で速度を求める
+			if ( BaroF > SlpRng[j] ){
+				ptSpdF = SpdVal[j];
+				break;
+			}
+			ptSpdF = SpdVal[SlpRng.length];
+		}
+		ptTimF = Math.round(Dist * 100 / ptSpdF) / 100;
+		DET = [Dist, EledF, ptTimF];
+		DisEldTim.push( DET );
+	  // 逆方向（DisEldTimRev）
+		let EledR =  trkptDat1[6] - trkptDat2[6];
+		let BaroR =  EledR / Dist;
+		let ptSpdR = 0;		
+		for ( let j = 0; j < SlpRng.length; ++j ){
+			if ( BaroR > SlpRng[j] ){
+				ptSpdR = SpdVal[j];
+				break;
+			}
+			ptSpdR = SpdVal[SlpRng.length];
+		}
+		ptTimR = Math.round(Dist * 100 / ptSpdR) / 100;
+		DET = [Dist, EledR, ptTimR];
+		DisEldTimRev.push( DET );		
+
+		trkptDat1 = trkptDat2.slice();
+	}
+	DET = [0, 0, 0];
+	DisEldTimRev.push(DET);
+}
+
+function add_ele_trkLin(){
+// trkLinArrの各データに標高値を追加
+// 引数：なし 返値：なし (trkLinArrの各trkptデータに追加）
+	let ele;
+	let trkptDat = [];
+	for (let i = 0 ; i < trkLinArr.length; i++ ){
+		trkptDat = trkLinArr[i].slice();
+		ele = get_tipixEle( trkptDat[3], trkptDat[4], trkptDat[5] );
+		trkLinArr[i] = trkptDat.concat( ele );
+	}
+	console.log( "add_ele trkLinArr[1] = " + trkLinArr[1] ); // for debg
+	return;
+}
+
+function get_tipixEle( tpX, tpY, tileidx ){ 
+// 指定タイル内ピクセル座標の標高値を得る
+// 引数：タイル内ピクセル座標X,Y、tileObjのタイルインデックス  返値：標高値
+	let pointer2, eledat;	
+	let tileTxt = tileObj[tileidx];
+	pointer = 0;
+	if ( tpY > 1){
+		for (let i = 0; i < tpY -1 ; i++){
+			pointer = tileTxt.indexOf("\n", pointer + 1);
+		}
+	}
+	if ( tpX > 1){
+		for (let i = 0; i <tpX -1 ; i++){
+			pointer = tileTxt.indexOf(",", pointer + 1);
+		}
+	}
+	(tpX <= 255) ? pointer2 = tileTxt.indexOf(",", pointer+1): pointer2 = tileTxt.indexOf("\n", pointer+1);
+	( pointer == 0 ) ? pointer = 0: pointer = pointer + 1;
+	eledat = tileTxt.substring( pointer, pointer2);
+	return parseFloat( eledat );
+}
+
+function tile_download(tilesArr){
+// リスト tilesArr の標高タイルを順次ダウンロード
+//  引数：タイルのリスト tilesArr 返値：なし( get_tile() で tileObj に格納 ) 
+	let zoom = 14;
+	tileObj = {};
+	startTime = Date.now(); //  for debug ダウンロード時間計測用
+	for (let i = 0; i < tilesArr.length; i++){
+		let tileTxt = tilesArr[i];
+		let XY = tileTxt.split("-");
+		let tileX = XY[0];
+		let tileY = XY[1];
+		let urltxt = "https://cyberjapandata.gsi.go.jp/xyz/dem/" + zoom + "/" + tileX + "/" + tileY + ".txt"
+		get_tile(tileX, tileY, zoom, urltxt, tileTxt);
+	}
+}
+
+function get_tile( tileX, tileY, zoom, urltxt, proper){ 
+// 地理院サーバーから標高タイルを取得
+// 引数；タイル座標X,Y、ズームレベル、url、tileObjの格納プロパティ  返値：なし( get_tile() でオブジェクト tileObjにproperの値として格納 )
+	let request = new XMLHttpRequest(); 
+	request.ontimeout = function () {
+		console.log("タイムアウト");
+    };
+	request.onreadystatechange = function(){
+		if (request.readyState == 4){
+		    if (request.status == 200){
+				console.log(urltxt); // for debug 標高タイルurl表示
+				const endTime = Date.now(); // for debug ダウンロード時間計測用
+				console.log((endTime - startTime) + "ms"); // for debug ダウンロード時間表示
+				tileObj[proper] = request.responseText;
+				if ( tilesArr.length == Object.keys(tileObj).length ){ // 最後のタイルDL終了後に次の処理を行う
+					afterDL();
+				}
+				return;
+			}else{
+				console.log( "error " + request.status );
+				return;
+			}
+		}
+	};
+	request.open("GET", urltxt, true); // HTTPリクエストを初期化(非同期)
+	request.timeout = DLtimeout; 
+	request.send(null); // HTTPリクエストをサーバーに送信
+}
+
+function make_DLtile_lis(trkLinArr){
+// ダウンロードする標高タイルのリスト(tilesArr)作成
+// 引数：（タイル座標X-Y文字列を含むトラックラインデータ配列）返値：必要タイルのリスト配列 tilesArr
+	let i, j, flg;
+	let tilesArr = [];
+	let pArr = trkLinArr[0].slice();
+	let strTil = pArr[5];
+	tilesArr.push( strTil );
+	for ( i = 1; i < trkLinArr.length; i++ ){
+		pArr = trkLinArr[i].slice();
+		strTil = pArr[5];
+		flg = 0;
+		for ( j = 0; j < tilesArr.length; j++ ){
+			if ( strTil === tilesArr[j] ){
+				flg = 1;
+			}
+		}
+		if ( flg === 0 ){
+			tilesArr.push( strTil );
+		}
+	}
+	console.log("標高タイル数: " + tilesArr.length + "枚"); // for debug
+	return tilesArr;
+}
+
+function make_trkLinAry_reduce(){
+// trkptの Lon, Lat, ele に地図標高タイル座標を追加したトラックラインデータ配列(trkLinArr)作成。ログは10mで間引き、標高タイルはレベル14
+// 引数なし（クローバル変数readTxtのGPXファイル）返値： 緯度、経度、標高、配列 trkLinArr
+	let dstp = 10; // 間引き間隔10m
+	let zoomVal =14; // 標高タイルズームレベル
+	let trkLinArr =[], trkdatArr = [];
+	pointer = 0;
+	trkpArr = get_trkptDat(readTxt, pointer);
+	trkdatArr = trkpArr.slice();
+	trkdatArr = trkdatArr.concat( latLon2tile(trkpArr[1], trkpArr[2], zoomVal) ); // 標高タイル座標を追加
+	trkdatArr.shift();
+	trkLinArr.push( trkdatArr );
+	while (trkpArr[0] != -1) {
+		trkpArrPrv = trkpArr.slice(); // 起点のtrkpArrをtrkpArrPrvにコピー
+		let PrevIdo = trkpArrPrv[1]; let PrevKeido = trkpArrPrv[2];
+		let AccDis = 0;
+		while ( AccDis <= dstp  ) { // trkpt間引きループ
+			pointer = trkpArr[0] + 1;
+			trkpArr = get_trkptDat(readTxt, pointer);
+			if ( trkpArr[0] === -1) {break;}
+			let CurIdo = trkpArr[1]; let CurKeido = trkpArr[2];
+			AccDis = hubeny(PrevIdo, PrevKeido, CurIdo, CurKeido); // 起点のtrkptとの距離
+		}
+		if (trkpArr[0] != -1){
+			trkdatArr = trkpArr.slice();
+			trkdatArr = trkdatArr.concat( latLon2tile(trkpArr[1], trkpArr[2], zoomVal) ); // 標高タイル座標を追加
+			trkdatArr.shift();
+			trkLinArr.push( trkdatArr );
+		}
+	}
+	console.log("trkLinArr.length = " + trkLinArr.length);  // for debug
+	return trkLinArr;
+}
+
+function latLon2tile(latVal, lonVal, zoomVal){ 
+// 緯度,経度,ズームレベルからタイル、ピクセル座標を求める
+// 引数：(緯度, 緯度, ズームレベル) 返値：[ aX, aY, strTcod ] タイル内ピクセル座標X,Y、タイル座標X-Y文字列
+	const L = 85.05112878; // 最大緯度
+	let lat = parseFloat(latVal); // 緯度
+	let lon = parseFloat(lonVal); // 経度
+	let zoom = parseInt(zoomVal); // ズームレベル
+  // ピクセル座標
+	let pX = parseInt(Math.pow(2, zoom + 7) * (lon / 180 + 1));
+    let pY = parseInt((Math.pow(2, zoom + 7) / Math.PI) * ((-1 * Math.atanh(Math.sin((Math.PI / 180) * lat))) + Math.atanh(Math.sin((Math.PI / 180) * L))));
+  // タイル X座標
+    let tX = parseInt(pX / 256);
+    let tY = parseInt(pY / 256);
+  // タイル内ピクセル座標
+	let aX = pX % tX + 1;
+	let aY = pY % tY + 1;
+	let strTcod = tX + "-" + tY;
+	return [ aX, aY, strTcod ];
+}
+
+function chg_spd(){
+// 速度設定変更処理
+	let Up1 = document.getElementById("UpSpd1").value;
+	let Up2 = document.getElementById("UpSpd2").value;
+	let Up3 = document.getElementById("UpSpd3").value;
+	let Up4 = document.getElementById("UpSpd4").value;
+	let Dn1 = document.getElementById("DnSpd1").value;
+	let Dn2 = document.getElementById("DnSpd2").value;
+	let Dn3 = document.getElementById("DnSpd3").value;
+	let Dn4 = document.getElementById("DnSpd4").value;
+	SpdVal = [ Up4/3.6, Up3/3.6, Up2/3.6, Up1/3.6, Dn1/3.6, Dn2/3.6, Dn3/3.6, Dn4/3.6 ];
+	dsp_init();
+	dsp_markLis(markLis);
+}
+
+function get_trkptDat(entStr, pointer){
+// 文字列entStrのpinterの位置から<trkptを検索しtrkptの経度、緯度、標高を返す
+// 引数：(検索文字列、検索位置) 返値：[pointer, strLat, strLon, ele] "trkpt"が見つからない時はpointerに-1
+//let strLat, strLon;
+	pointer = entStr.indexOf("<trkpt",pointer);
+	if (pointer === -1){ 
+		return trkpArr = [pointer, , , ]; 
+	}
+	let trkptStr = entStr.substring(pointer, entStr.indexOf("</trkpt>",pointer)+8);
+	let Latpt = trkptStr.indexOf("lat=");
+	let Lonpt = trkptStr.indexOf("lon=");
+	strLat = trkptStr.substring( Latpt+5, trkptStr.indexOf('"', Latpt+5) );
+	strLon = trkptStr.substring( Lonpt+5, trkptStr.indexOf('"', Lonpt+5) );
+	let strEle;
+	if ( trkptStr.indexOf("<ele>") != -1 ){
+		strEle = trkptStr.substring(trkptStr.indexOf("<ele>")+5,trkptStr.indexOf("</ele>"));
+	}else{
+		strEle = "";
+	}
+	return [pointer, parseFloat(strLat), parseFloat(strLon), parseFloat(strEle)];
+}
+
+function hubeny(ido1,keido1,ido2,keido2){ 
+// 2つの緯度、経度から２点間の距離を求める
+// 引数：(緯度1、経度1、緯度2、経度2) 返値：距離m
+	const pai = 3.14159265;
+	let P = (ido1 + ido2) / 2 * pai / 180;
+	let dP = (ido1 - ido2) * pai / 180;
+	let dR = (keido1 - keido2) * pai / 180;
+	let M = 6334834 / Math.sqrt(Math.pow((1 - 0.006674 * Math.sin(P) * Math.sin(P)),3));
+	let N = 6377397 / Math.sqrt(1 - 0.006674 * Math.sin(P) * Math.sin(P));
+	return D = Math.sqrt((M * dP) * (M * dP) + (N * Math.cos(P) * dR) * (N * Math.cos(P) * dR));
+}
+
+function mke_KLM(){
+	writeTex = ''; 
+  // ヘッダとスタイル記述
+	let IconScSg = 1.5 + parseFloat(document.selbttn2.Icon.value);
+	let IconScMd = 1 +  parseFloat(document.selbttn2.Icon.value);
+	
+	writeTex = '<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n';
+	writeTex += '  <Name>' + writeFilNam + '</Name>\n';
+	writeTex += '  <Style id="L1">\n    <LineStyle>\n      <color>ff0000ff</color>\n';
+	writeTex += '      <width>3</width>\n';
+	writeTex += '    </LineStyle>\n  </Style>\n';
+
+	writeTex += '  <Style id="MidIcon">\n    <IconStyle>\n      <Icon>\n';
+	writeTex += '        <href>https://maps.gsi.go.jp/portal/sys/v4/symbols/609.png</href>\n      </Icon>\n';
+	writeTex += '    <scale>' + IconScMd + '</scale>\n    </IconStyle>\n  </Style>\n';
+	writeTex += '  <Style id="StartIcon">\n      <IconStyle>\n        <Icon>\n';
+	writeTex += '        <href>https://maps.gsi.go.jp/portal/sys/v4/symbols/355.png</href>\n      </Icon>\n';
+	writeTex += '    <scale>' + IconScSg + '</scale>\n      </IconStyle>\n    </Style>\n';
+	writeTex += '  <Style id="GoalIcon">\n      <IconStyle>\n        <Icon>\n';
+	writeTex += '        <href>https://maps.gsi.go.jp/portal/sys/v4/symbols/343.png</href>\n      </Icon>\n';
+	writeTex += '    <scale>' + IconScSg + '</scale>\n      </IconStyle>\n    </Style>\n';
+
+ // Start/Goalマーカー記述
+	writeTex += '  <Placemark>\n    <name>' + document.getElementById("start_nam").value + '</name>\n';
+	writeTex += '      <styleUrl>#StartIcon</styleUrl>\n';
+	writeTex += '    <Point>\n      <altitudeMode>relativeToGround</altitudeMode>\n';
+	writeTex += '      <coordinates>' + trkLinArr[0][1] + ',' + trkLinArr[0][0] + '</coordinates>\n';
+	writeTex += '    </Point>\n   </Placemark>\n';
+
+	writeTex += '  <Placemark>\n    <name>' + document.getElementById("goal_nam").value + '</name>\n';
+	writeTex += '      <styleUrl>#GoalIcon</styleUrl>\n';
+	writeTex += '    <Point>\n      <altitudeMode>relativeToGround</altitudeMode>\n';
+	writeTex += '      <coordinates>' + trkLinArr[trkLinArr.length -1][1] + ',' + trkLinArr[trkLinArr.length -1][0] + '</coordinates>\n';
+	writeTex += '    </Point>\n   </Placemark>\n';
+	writeTex += '\n';
+ // 中間マーカー記述
+	for (let i = 0; i < SDmarkLis.length; i++ ){
+		let markNam = SDmarkLis[i][0];
+		let lonlat = trkLinArr[ SDmarkLis[i][1] ][1] + "," + trkLinArr[ SDmarkLis[i][1] ][0];
+		writeTex += '  <Placemark>\n    <name>' + markNam + '</name>\n';
+		writeTex += '      <styleUrl>#MidIcon</styleUrl>\n';
+		writeTex += '    <Point>\n      <altitudeMode>relativeToGround</altitudeMode>\n';
+		writeTex += '      <coordinates>' + lonlat + '</coordinates>\n';
+		writeTex += '    </Point>\n   </Placemark>\n';
+	}
+ // ライン記述
+	writeTex += '  <Placemark>\n    <name>' + writeFilNam + '</name>\n';
+	writeTex += '    <styleUrl>#L1</styleUrl>\n    <LineString>\n      <altitudeMode></altitudeMode>\n      <coordinates>\n';
+ 	for (let i = 0; i < trkLinArr.length; i++ ){
+		lonlat = trkLinArr[i][1] + ',' + trkLinArr[i][0] + '\n';
+		writeTex += lonlat;
+	}
+	writeTex += '      </coordinates>\n    </LineString>\n  </Placemark>\n';
+ // フッター
+	writeTex += '</Document>\n</kml>\n';
+}
+
+function saveFile(){
+// ファイル出力
+	if ( writeFilNam == ""){ alert("有効なGPXファイルが読み込まれていません"); return;}
+	writeFilNam = document.getElementById("filet_nam").value;
+	chg_markTxt(markLis);
+	dsp_markLis(markLis);
+	mke_KLM();
+	let title = writeFilNam + ".kml"; // 出力ファイル名
+	let linkTag = document.getElementById( "getLocal" );
+	let linkTagAttr =  ["href","download"];
+	let stringObject = new Blob( [writeTex], { type: "text/plain" } );
+	let objectURL = window.URL.createObjectURL( stringObject );   
+	linkTag.setAttribute( linkTagAttr[0], objectURL );
+	linkTag.setAttribute( linkTagAttr[1], title ); 
+}
+
+</script>
+</body>
+</html>
+
