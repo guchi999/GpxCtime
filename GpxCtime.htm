@@ -54,7 +54,7 @@
 
 </head>
 <body>
-	<span>【GPXコースタイム見積 V2.0】<span><br>
+	<span>【GPXコースタイム見積 V2.1】<span><br>
 	<span><b>画面にGPXファイルをドロップするか、ボタンを押してファイルを選択してください。</b></span>
 	<input type="file" multiple id="selfile"><br>
 	
@@ -200,26 +200,8 @@ obj1.addEventListener("change",function(evt){
 		readTxt = reader.result; // 読み込んだテキストを readTxt に入れる
 		writeFilNam = input.name.split( "." )[0];
 		after_file_read(readTxt, writeFilNam);
-/*
-//		document.getElementById("start_nam").value = "Start";
-//		document.getElementById("goal_nam").value = "Goal";
-		document.getElementById("filet_nam").value = writeFilNam;
-		pointer = readTxt.indexOf("<gpx");
-		if (pointer !== -1 ){
-			trkLinArr = make_trkLinAry_reduce();
-			tilesArr = make_DLtile_lis(trkLinArr);
-			tile_download(tilesArr);
-			LinePlot = make_linePlot(trkLinArr);
-			DrwMap();
-		}else{
-			alert("ファイル1はGPXファイルではありません");
-			writeFilNam = "";
-			document.getElementById("filet_nam").value = "";
-		}	
-*/
 	 }
 },false);
-
 
 function after_file_read(readTxt, writeFilNam){
 	document.getElementById("start_nam").value = "Start";
@@ -803,7 +785,7 @@ function mke_KLM(){
 	writeTex += '  <Placemark>\n    <name>' + writeFilNam + '</name>\n';
 	writeTex += '    <styleUrl>#L1</styleUrl>\n    <LineString>\n      <altitudeMode></altitudeMode>\n      <coordinates>\n';
  	for (let i = 0; i < trkLinArr.length; i++ ){
-		lonlat = trkLinArr[i][1] + ',' + trkLinArr[i][0] + '\n';
+		lonlat = trkLinArr[i][1] + ',' + trkLinArr[i][0] + ',' + trkLinArr[i][6] +  '\n';
 		writeTex += lonlat;
 	}
 	writeTex += '      </coordinates>\n    </LineString>\n  </Placemark>\n';
