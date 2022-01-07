@@ -7,14 +7,13 @@
 	const UpSpd1 = 3.15, DnSpd1 = 3.53;
 	const UpSpd2 = 1.96, DnSpd2 = 2.73;
 	const UpSpd3 = 1.04, DnSpd3 = 1.79;
-	const UpSpd4 = 0.62, DnSpd4 = 1.19;
+	const UpSpd4 = 0.62, DnSpd4 = 0.85;
 	const UpRng1 = 20, DnRng1 = -30;
 	const UpRng2 = 40, DnRng2 = -50;
 	const UpRng3 = 80, DnRng3 = -80;
-
-	const DLtimeout = 10000;
 	var SlpRng = [ UpRng3/100, UpRng2/100, UpRng1/100, 0, DnRng1/100, DnRng2/100, DnRng3/100 ]; // 傾斜レンジ配列
 	var SpdVal = [ UpSpd4/3.6, UpSpd3/3.6, UpSpd2/3.6, UpSpd1/3.6, DnSpd1/3.6, DnSpd2/3.6, DnSpd3/3.6, DnSpd4/3.6 ]; // 速度(m/s)配列
+	const DLtimeout = 10000;
 	</script>
 
 	<style>
@@ -54,10 +53,9 @@
 
 </head>
 <body>
-	<span>【GPXコースタイム見積 V2.1】<span><br>
+	<span>【GPXコースタイム見積 V3.0】<span><br>
 	<span><b>画面にGPXファイルをドロップするか、ボタンを押してファイルを選択してください。</b></span>
 	<input type="file" multiple id="selfile"><br>
-	
 	<div id="mapWin1" style="width:700px;height:500px"></div>
 
 	<span style="color:mediumblue">【順ルート】</span>
@@ -65,34 +63,46 @@
 	<span id="message2"> </span><br>
 	<span style="color:mediumblue">【逆ルート】</span>
 	<span id="message3" style="color:olivedrab"> </span><br>
-	<span id="message4"> </span><br>
-	<br>
-	<div style="float:left;">
-	<div style="float:left;">
-	<span><b style="color:mediumblue">＠&nbsp;</b>マーカー名称</span><br>
-	<input type="text" id="start_nam" size="20" value="Start"></div>
-	<textarea id="txt_area" rows="5" cols="20"></textarea>
+	<span id="message4"> </span><br><br>
+	<div>
+		<div style="float:left;">
+			<div style="float:left;">
+				<span><b style="color:mediumblue">＠&nbsp;</b>マーカー名称</span><br>
+				<input type="text" id="start_nam" size="20" value="Start"></div>
+			<textarea id="txt_area" rows="5" cols="20"></textarea>
+			</div><br>
+		<input type="text" id="goal_nam" size="20" value="Goal"><br><br clear="left">
 	</div>
-	<span></span><br>
-	<input type="text" id="goal_nam" size="20" value="Goal"><br clear="left"><br>
-
 	<form name="selbttn1">
 		<span>&nbsp;　区間距離の表示：</span>
-		<input type="radio" name="SpltDist" value="n" checked><span>&nbsp;しない</span>
-		<input type="radio" name="SpltDist" value="y" ><span>&nbsp;する</span>
+		<input type="radio" name="SpltDist" value="n" onchange="chg_spd()" checked><span>&nbsp;しない</span>
+		<input type="radio" name="SpltDist" value="y" onchange="chg_spd()"><span>&nbsp;する</span>
 	</form>
 	<br>
+
 	<span><b style="color:mediumblue">＠&nbsp;</b>ルートを</span>
-	<input type="text" id="filet_nam" size="15" value=""><span>の名前でKMLファイルに</span>
+	<input type="text" id="file_nam" size="15" value=""><span>の名前でファイルに</span>
 	<a id="getLocal" href="#" onClick="saveFile()">
 	<span style="border: 1px solid #000000; background-color: #dcdcdc">&nbsp;出力&nbsp;</span></a>
 	<form name="selbttn2">
-		<span>&nbsp;　マーカーのサイズ：</span>
+		<span>&nbsp;　ルートの方向：</span>
+		<input type="radio" name="Direc" value="forw" checked><span>&nbsp;順ルート</span>
+		<input type="radio" name="Direc" value="revs" ><span>&nbsp;逆ルート</span>
+	</form>
+	<form name="selbttn3">
+		<span>&nbsp;　ファイル種別：</span>
+		<input type="radio" name="outFile" value="kml" checked><span>&nbsp;KML</span>
+		<input type="radio" name="outFile" value="gpx"><span>&nbsp;GPX</span>
+	</form>
+	<form name="selbttn4">
+		<span>&nbsp;　マーカーアイコンのサイズ(KML)：</span>
 		<input type="radio" name="Icon" value=-0.5><span>&nbsp;小</span>
 		<input type="radio" name="Icon" value=0 checked><span>&nbsp;標準</span>
 		<input type="radio" name="Icon" value=0.5 ><span>&nbsp;大</span>
 	</form>
-	<br>
+	<label for="str_date">&nbsp;　開始時間(GPX)：日付 </label> <input type="date" id="str_date" value="" >
+	<label for="str_time">時間 </label> <input type="time" id="str_time" value="08:00">
+	<br><br>
 
 	<span><strong><b style="color:mediumblue">＠&nbsp;</b></strong>速度設定（値を変更したら再表示ボタンを押してください）</span><br>
 	<div style="float:left; border: solid 1px #000;">
@@ -128,7 +138,7 @@
 
 var readTxt = ""; // 入力ファイル
 var writeFilNam = ""; // 拡張子無しファイル名
-var trkLinArr; // trkptデータ配列  [ Lat, Lon, ele, ピクセル座標, タイル座標X-Y(文字列), タイルele ]
+var trkLinArr; // trkptデータ配列  [ Lat, Lon, 入力ファイル標高, ピクセル座標, タイル座標X-Y(文字列), タイル標高, 距離, 順時間, 逆時間 ]
 var tilesArr; // 必要標高タイルのリスト [ タイルX座標-タイルY座標, ... ]
 var tileObj = {}; // 標高タイルデータ { タイルX座標-タイルY座標: タイルデータtxt, ... }
 var DisEldTim = [], DisEldTimRev =[]; // trkpt毎の前trkptの距離、標高差、所用時間の配列 [ [Dist, Eled, ptTim], ... ]
@@ -143,6 +153,12 @@ var markLis = {}; // マーカーのリスト { Mark番号:[マーカー名, trk
 var SDmarkLis = []; // ソートしたマーカーリスト
 
 window.onload = function() { // 初期画面の設定
+	let today = new Date();
+	today.setDate(today.getDate());
+	let yyyy = today.getFullYear();
+	let mm = ("0" + (today.getMonth() + 1)).slice(-2);
+	let dd = ("0" + today.getDate()).slice(-2);
+	document.getElementById("str_date").value = yyyy + '-' + mm + '-' + dd;
 	document.getElementById("UpRng1").innerHTML = "0m ～ " + UpRng1 + "/100m";
 	document.getElementById("UpRng2").innerHTML = UpRng1 + "/100m ～ " + UpRng2 + "/100m";
 	document.getElementById("UpRng3").innerHTML = UpRng2 + "/100m ～ " + UpRng3 + "/100m";
@@ -163,8 +179,6 @@ window.onload = function() { // 初期画面の設定
 }
 
 //ファイル読み込み
-
-// ドラッグ&ドロップ ファイル入力
 const dropArea = document.body; // ドラッグ&ドロップを許可する領域
 dropArea.addEventListener("dragover", event => {
 	event.preventDefault();
@@ -206,7 +220,7 @@ obj1.addEventListener("change",function(evt){
 function after_file_read(readTxt, writeFilNam){
 	document.getElementById("start_nam").value = "Start";
 	document.getElementById("goal_nam").value = "Goal";
-	document.getElementById("filet_nam").value = writeFilNam;
+	document.getElementById("file_nam").value = writeFilNam+"_es";
 	let fieChk = 0;
 	let pointer = readTxt.indexOf("</gpx>");
 	( pointer !== -1 ) ? fieChk = fieChk: fieChk++;
@@ -222,7 +236,7 @@ function after_file_read(readTxt, writeFilNam){
 	}else{
 		alert( GpxFileName + "はGPXファイルではありません");
 			writeFilNam = "";
-			document.getElementById("filet_nam").value = "";
+			document.getElementById("file_nam").value = "";
 	}
 }
 
@@ -422,7 +436,10 @@ function splTim_rev(mkLis){
 function afterDL(){ // 標高タイルダウンロード後の処理
 	add_ele_trkLin();
 	dsp_init();
+//console.log(DisEldTim);
+//console.log(DisEldTimRev);
 }
+
 
 function dsp_init(){
 	make_DisEldTim();
@@ -503,7 +520,7 @@ function make_DisEldTim(){
 			}
 			ptSpdF = SpdVal[SlpRng.length];
 		}
-		ptTimF = Math.round(Dist * 100 / ptSpdF) / 100;
+		ptTimF = Math.round(Dist / ptSpdF);
 		DET = [Dist, EledF, ptTimF];
 		DisEldTim.push( DET );
 	  // 逆方向（DisEldTimRev）
@@ -517,7 +534,7 @@ function make_DisEldTim(){
 			}
 			ptSpdR = SpdVal[SlpRng.length];
 		}
-		ptTimR = Math.round(Dist * 100 / ptSpdR) / 100;
+		ptTimR = Math.round(Dist / ptSpdR);
 		DET = [Dist, EledR, ptTimR];
 		DisEldTimRev.push( DET );		
 
@@ -537,7 +554,7 @@ function add_ele_trkLin(){
 		ele = get_tipixEle( trkptDat[3], trkptDat[4], trkptDat[5] );
 		trkLinArr[i] = trkptDat.concat( ele );
 	}
-	console.log( "add_ele trkLinArr[1] = " + trkLinArr[1] ); // for debg
+//	console.log( "add_ele trkLinArr[1] = " + trkLinArr[1] ); // for debg
 	return;
 }
 
@@ -548,14 +565,10 @@ function get_tipixEle( tpX, tpY, tileidx ){
 	let tileTxt = tileObj[tileidx];
 	pointer = 0;
 	if ( tpY > 1){
-		for (let i = 0; i < tpY -1 ; i++){
-			pointer = tileTxt.indexOf("\n", pointer + 1);
-		}
+		for (let i = 0; i < tpY -1 ; i++){ pointer = tileTxt.indexOf("\n", pointer + 1); }
 	}
 	if ( tpX > 1){
-		for (let i = 0; i <tpX -1 ; i++){
-			pointer = tileTxt.indexOf(",", pointer + 1);
-		}
+		for (let i = 0; i <tpX -1 ; i++){ pointer = tileTxt.indexOf(",", pointer + 1); }
 	}
 	(tpX <= 255) ? pointer2 = tileTxt.indexOf(",", pointer+1): pointer2 = tileTxt.indexOf("\n", pointer+1);
 	( pointer == 0 ) ? pointer = 0: pointer = pointer + 1;
@@ -625,18 +638,16 @@ function make_DLtile_lis(trkLinArr){
 				flg = 1;
 			}
 		}
-		if ( flg === 0 ){
-			tilesArr.push( strTil );
-		}
+		if ( flg === 0 ){ tilesArr.push( strTil ); }
 	}
 	console.log("標高タイル数: " + tilesArr.length + "枚"); // for debug
 	return tilesArr;
 }
 
 function make_trkLinAry_reduce(){
-// trkptの Lon, Lat, ele に地図標高タイル座標を追加したトラックラインデータ配列(trkLinArr)作成。ログは10mで間引き、標高タイルはレベル14
+// trkptの Lon, Lat, ele に地図標高タイル座標を追加したトラックラインデータ配列(trkLinArr)作成。ログは8mで間引き、標高タイルはレベル14
 // 引数なし（クローバル変数readTxtのGPXファイル）返値： 緯度、経度、標高、配列 trkLinArr
-	let dstp = 10; // 間引き間隔10m
+	let dstp = 8; // 間引き間隔8m
 	let zoomVal =14; // 標高タイルズームレベル
 	let trkLinArr =[], trkdatArr = [];
 	pointer = 0;
@@ -705,7 +716,6 @@ function chg_spd(){
 function get_trkptDat(entStr, pointer){
 // 文字列entStrのpinterの位置から<trkptを検索しtrkptの経度、緯度、標高を返す
 // 引数：(検索文字列、検索位置) 返値：[pointer, strLat, strLon, ele] "trkpt"が見つからない時はpointerに-1
-//let strLat, strLon;
 	pointer = entStr.indexOf("<trkpt",pointer);
 	if (pointer === -1){ 
 		return trkpArr = [pointer, , , ]; 
@@ -736,11 +746,12 @@ function hubeny(ido1,keido1,ido2,keido2){
 	return D = Math.sqrt((M * dP) * (M * dP) + (N * Math.cos(P) * dR) * (N * Math.cos(P) * dR));
 }
 
-function mke_KLM(){
-	writeTex = ''; 
+// KML出力用テキスト作成
+function make_KLM(){
+	let Direc = document.selbttn2.Direc.value;
   // ヘッダとスタイル記述
-	let IconScSg = 1.5 + parseFloat(document.selbttn2.Icon.value);
-	let IconScMd = 1 +  parseFloat(document.selbttn2.Icon.value);
+	let IconScSg = 1.5 + parseFloat(document.selbttn4.Icon.value);
+	let IconScMd = 1 +  parseFloat(document.selbttn4.Icon.value);
 	
 	writeTex = '<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n';
 	writeTex += '  <Name>' + writeFilNam + '</Name>\n';
@@ -760,13 +771,17 @@ function mke_KLM(){
 
  // Start/Goalマーカー記述
 	writeTex += '  <Placemark>\n    <name>' + document.getElementById("start_nam").value + '</name>\n';
-	writeTex += '      <styleUrl>#StartIcon</styleUrl>\n';
+	Direc === "forw" ?
+		writeTex += '      <styleUrl>#StartIcon</styleUrl>\n' :
+		writeTex += '      <styleUrl>#GoalIcon</styleUrl>\n';
 	writeTex += '    <Point>\n      <altitudeMode>relativeToGround</altitudeMode>\n';
 	writeTex += '      <coordinates>' + trkLinArr[0][1] + ',' + trkLinArr[0][0] + '</coordinates>\n';
 	writeTex += '    </Point>\n   </Placemark>\n';
 
 	writeTex += '  <Placemark>\n    <name>' + document.getElementById("goal_nam").value + '</name>\n';
-	writeTex += '      <styleUrl>#GoalIcon</styleUrl>\n';
+	Direc === "forw" ?
+		writeTex += '      <styleUrl>#GoalIcon</styleUrl>\n' :
+		writeTex += '      <styleUrl>#StartIcon</styleUrl>\n';
 	writeTex += '    <Point>\n      <altitudeMode>relativeToGround</altitudeMode>\n';
 	writeTex += '      <coordinates>' + trkLinArr[trkLinArr.length -1][1] + ',' + trkLinArr[trkLinArr.length -1][0] + '</coordinates>\n';
 	writeTex += '    </Point>\n   </Placemark>\n';
@@ -784,23 +799,70 @@ function mke_KLM(){
  // ライン記述
 	writeTex += '  <Placemark>\n    <name>' + writeFilNam + '</name>\n';
 	writeTex += '    <styleUrl>#L1</styleUrl>\n    <LineString>\n      <altitudeMode></altitudeMode>\n      <coordinates>\n';
- 	for (let i = 0; i < trkLinArr.length; i++ ){
-		lonlat = trkLinArr[i][1] + ',' + trkLinArr[i][0] + ',' + trkLinArr[i][6] +  '\n';
-		writeTex += lonlat;
+	 if ( Direc === "forw" ){
+	 	for (let i = 0; i < trkLinArr.length; i++ ){ writeTex += trkLinArr[i][1] + ',' + trkLinArr[i][0] + ',' + trkLinArr[i][6] +  '\n';  }
+	}else{
+	 	for (let i = trkLinArr.length - 1 ; i >= 0 ; i-- ){ writeTex += trkLinArr[i][1] + ',' + trkLinArr[i][0] + ',' + trkLinArr[i][6] +  '\n';  }
 	}
 	writeTex += '      </coordinates>\n    </LineString>\n  </Placemark>\n';
  // フッター
 	writeTex += '</Document>\n</kml>\n';
 }
 
+// GPX出力用テキスト作成
+function make_GPX(){
+	let Direc = document.selbttn2.Direc.value;
+	let timeObj =  new Date( document.getElementById("str_date").value + "T" + document.getElementById("str_time").value );
+	let timeStr = "";
+ // ヘッダー&ウエイポイント記述
+	writeTex = '<?xml version="1.0" encoding="UTF-8"?>\n';
+	writeTex += '<gpx xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.topografix.com/GPX/1/0" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd" creator="https://github.com/guchi999">\n';
+
+	let wptNam = document.getElementById("start_nam").value;
+	if ( Direc === "revs" ){ wptNam = document.getElementById("goal_nam").value; }
+	writeTex += `<wpt lat="${ trkLinArr[0][0] }" lon="${ trkLinArr[0][1] }" >\n`;
+	writeTex += `<name>${ wptNam }</name>\n<cmt>${ wptNam }</cmt>\n<desc>${ wptNam }</desc>\n</wpt>\n`;
+	wptNam = document.getElementById("goal_nam").value;
+	if ( Direc === "revs" ){ wptNam = document.getElementById("start_nam").value; }
+	writeTex += `<wpt lat="${ trkLinArr[trkLinArr.length -1][0] }" lon="${ trkLinArr[trkLinArr.length -1][1] }" >\n`;
+	writeTex += `<name>${ wptNam }</name>\n<cmt>${ wptNam }</cmt>\n<desc>${ wptNam }</desc>\n</wpt>\n`;
+	if ( SDmarkLis.length != 0 ){
+		for (let i = 0; i < SDmarkLis.length; i++ ){
+			wptNam = SDmarkLis[i][0];
+			writeTex += `<wpt lat="${ trkLinArr[ SDmarkLis[i][1] ][0] }" lon="${ trkLinArr[ SDmarkLis[i][1] ][1]}">\n`;
+			writeTex += `<name>${ wptNam }</name>\n<cmt>${ wptNam }</cmt>\n<desc>${ wptNam }</desc>\n</wpt>\n`;
+		}
+	}
+	writeTex += `<trk><name>${document.getElementById("file_nam").value}</name><number>1</number>\n<trkseg>\n`;
+	if ( Direc === "forw" ){
+		for (let i = 0; i < trkLinArr.length; i++ ){
+			timeObj.setSeconds(timeObj.getSeconds() + DisEldTim[i][2]);
+			timeStr = timeObj.toISOString().split('.')[0] + "Z" ;
+			writeTex += `<trkpt lat="${trkLinArr[i][0]}" lon="${trkLinArr[i][1]}">`;
+			writeTex += `<ele>${trkLinArr[i][6]}</ele><time>${timeStr}</time></trkpt>\n`;
+		}
+	}else{
+		for (let i = trkLinArr.length - 1 ; i >= 0 ; i-- ){
+			timeObj.setSeconds(timeObj.getSeconds() + DisEldTimRev[i][2]);
+			timeStr = timeObj.toISOString().split('.')[0] + "Z" ;
+			writeTex += `<trkpt lat="${trkLinArr[i][0]}" lon="${trkLinArr[i][1]}">`;
+			writeTex += `<ele>${trkLinArr[i][6]}</ele><time>${timeStr}</time></trkpt>\n`;
+		}
+	}	
+	writeTex += `</trkseg>\n</trk>\n`;
+	writeTex += `</gpx>\n`;
+}
+
 function saveFile(){
 // ファイル出力
 	if ( writeFilNam == ""){ alert("有効なGPXファイルが読み込まれていません"); return;}
-	writeFilNam = document.getElementById("filet_nam").value;
+	writeFilNam = document.getElementById("file_nam").value;
 	chg_markTxt(markLis);
 	dsp_markLis(markLis);
-	mke_KLM();
-	let title = writeFilNam + ".kml"; // 出力ファイル名
+	let title = writeFilNam;
+	document.selbttn3.outFile.value === "kml" ? make_KLM(): make_GPX();
+	document.selbttn3.outFile.value === "kml" ? title += ".kml": title += ".gpx";
+
 	let linkTag = document.getElementById( "getLocal" );
 	let linkTagAttr =  ["href","download"];
 	let stringObject = new Blob( [writeTex], { type: "text/plain" } );
