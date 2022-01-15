@@ -39,17 +39,17 @@
 　値を変えても立ち上げる毎に元の設定値になります。毎回、値を変えるのは面倒なので、ソースコードの7行目からの値を変えて上書き保存すれば、次からは変更した値で立ち上がります。
 　保存するときは、文字コードをUTF8(BOMなし)で保存してください。
 
-UpSpd1～UpSpd4 は上り速度（km/h)、DnSpd1～ DnSpd4 は下り速度です。
-　速度設定デフォルト値
-　　const UpSpd1 = 3.15, DnSpd1 = 3.53;
-　　const UpSpd2 = 1.96, DnSpd2 = 2.73;
-　　const UpSpd3 = 1.04, DnSpd3 = 1.79;
-　　const UpSpd4 = 0.62, DnSpd4 = 0.85;
+　UpSpd1～UpSpd4 は上り速度（km/h)、DnSpd1～ DnSpd4 は下り速度です。
+　　速度設定デフォルト値
+　　　const UpSpd1 = 3.15, DnSpd1 = 3.53;
+　　　const UpSpd2 = 1.96, DnSpd2 = 2.73;
+　　　const UpSpd3 = 1.04, DnSpd3 = 1.79;
+　　　const UpSpd4 = 0.62, DnSpd4 = 0.85;
 
 　また、傾斜（昇降値）の範囲も、11行目からの各定数で変えられます。
 　UpRng1～UpRng3 が上り、DnRng1～DnRng3 が下りです。下りの数字のマイナス符号は必須です。
-
-const UpRng1 = 20, DnRng1 = -30;
-const UpRng2 = 40, DnRng2 = -50;
-const UpRng3 = 80, DnRng3 = -80;
+　　傾斜設定デフォルト値
+　　　const UpRng1 = 20, DnRng1 = -30;
+　　　const UpRng2 = 40, DnRng2 = -50;
+　　　const UpRng3 = 80, DnRng3 = -80;
 
