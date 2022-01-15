@@ -53,14 +53,14 @@
 
 </head>
 <body>
-	<span>【GPXコースタイム見積 V3.0】<span><br>
+	<span>【GPXコースタイム見積 V3.1】<span><br>
 	<span><b>画面にGPXファイルをドロップするか、ボタンを押してファイルを選択してください。</b></span>
 	<input type="file" multiple id="selfile"><br>
 	<div id="mapWin1" style="width:700px;height:500px"></div>
 
 	<span style="color:mediumblue">【順ルート】</span>
 	<span id="message1" style="color:olivedrab"> </span><br>
-	<span id="message2"> </span><br>
+	<span id="message2"> </span><br><br>
 	<span style="color:mediumblue">【逆ルート】</span>
 	<span id="message3" style="color:olivedrab"> </span><br>
 	<span id="message4"> </span><br><br>
@@ -151,6 +151,7 @@ var mymap;
 var markNum = 0; // マーカー連番用
 var markLis = {}; // マーカーのリスト { Mark番号:[マーカー名, trkLinArrインデックス], ....}
 var SDmarkLis = []; // ソートしたマーカーリスト
+var WpList = [];
 
 window.onload = function() { // 初期画面の設定
 	let today = new Date();
@@ -232,6 +233,8 @@ function after_file_read(readTxt, writeFilNam){
 		tilesArr = make_DLtile_lis(trkLinArr);
 		tile_download(tilesArr);
 		LinePlot = make_linePlot(trkLinArr);
+		make_Wplist(readTxt); // WP付ファイル読み込み時のマーカーリスト作成(v31)
+		make_Wplist_byYR(readTxt); // ヤマレコ地名付GPX読み込み時のマーカーリスト作成(v31)
 		DrwMap();
 	}else{
 		alert( GpxFileName + "はGPXファイルではありません");
@@ -267,24 +270,44 @@ function DrwMap(){
   // LinePlotのデータをpolylineオブジェクトで地図に表示
 	var polyline = L.polyline(LinePlot, { color: 'red', weight: 5 }).addTo(mymap);
 	mymap.fitBounds(polyline.getBounds()); // 地図の表示範囲をLinePlotに合わせて変更
+
+  // WP付ファイル読み込み時のマーカー表示(v31)
+	if ( WpList.length != 0 ){ 
+		for ( let i = 0; i < WpList.length; i++ ){
+			if ( WpList[ i ][1] === 0 ){
+				document.getElementById("start_nam").value = WpList[ i ][0];
+			}else if (WpList[ i ][1] === trkLinArr.length -1 ){
+				document.getElementById("goal_nam").value = WpList[ i ][0];
+			}else{
+				markNum++;
+				let maN = WpList[ i ][0];
+				let marks = WpList[ i ].slice();
+				markLis[ maN ] = marks;
+				let lat = LinePlot[ marks[1] ][0];
+				let lng = LinePlot[ marks[1] ][1];
+				let md = L.marker([lat,lng],{title:maN}).on('click', onMarkerClick).addTo(mymap);
+			}
+		}
+	}
+
   // start goal をdivIconオブジェクトのマーカーで地図に表示
   // goalマーカー
 	let MP = LinePlot[ LinePlot.length -1 ].slice();
 	let goalicon = L.divIcon({
-        className: 'custom-div-icon',
-        html: "<div style='background-color:#0000cd;' class='marker-pin'></div><i class='material-icons'>G</i>",
-        iconSize: [30, 42],
-        iconAnchor: [14, 40]
-	});
+	className: 'custom-div-icon',
+	html: "<div style='background-color:#0000cd;' class='marker-pin'></div><i class='material-icons'>G</i>",
+	iconSize: [30, 42],
+	iconAnchor: [14, 40]
+	} );
 	L.marker([ MP[0], MP[1] ],{title:"goal", icon: goalicon }).addTo(mymap);
   // startマーカー
 	MP = LinePlot[0].slice();
 	let starticon = L.divIcon({
-        className: 'custom-div-icon',
-        html: "<div style='background-color:#0000cd;' class='marker-pin'></div><i class='material-icons'>S</i>",
-        iconSize: [30, 42],
-        iconAnchor: [14, 40]
-	});
+	className: 'custom-div-icon',
+	html: "<div style='background-color:#0000cd;' class='marker-pin'></div><i class='material-icons'>S</i>",
+	iconSize: [30, 42],
+	iconAnchor: [14, 40]
+	} );
 	L.marker([ MP[0], MP[1] ], { title:"Start", icon: starticon }).addTo(mymap);
 
   // クリック点近傍のLinePlot点にマーカーを追加、マーカーのclickイベントでonMarkerClick関数を呼び出し削除
@@ -339,14 +362,10 @@ function dsp_markLis(markLis){
 	if ( keys.length < 1 ){
 		document.getElementById("txt_area").value = "";
 	}else{
-		for ( let i = 0; i < keys.length; i++ ){
-			tmp.push( markLis[ keys[i] ] );
-		}
+		for ( let i = 0; i < keys.length; i++ ){ tmp.push( markLis[ keys[i] ] ); }
 		tmp.sort( (a, b) => { return a[a.length - 1] - b[b.length -1] } );
 		let txttmp = "";
-		for ( let i = 0; i < tmp.length; i++ ){
-			txttmp += tmp[i][0] + "\n";
-		}
+		for ( let i = 0; i < tmp.length; i++ ){ txttmp += tmp[i][0] + "\n"; }
 		document.getElementById("txt_area").value = txttmp;
 	}
 	SDmarkLis = tmp.slice();
@@ -436,10 +455,8 @@ function splTim_rev(mkLis){
 function afterDL(){ // 標高タイルダウンロード後の処理
 	add_ele_trkLin();
 	dsp_init();
-//console.log(DisEldTim);
-//console.log(DisEldTimRev);
+	dsp_markLis(markLis); // WP付ファイル読み込み時にマーカーリスト表示(v31)
 }
-
 
 function dsp_init(){
 	make_DisEldTim();
@@ -537,7 +554,6 @@ function make_DisEldTim(){
 		ptTimR = Math.round(Dist / ptSpdR);
 		DET = [Dist, EledR, ptTimR];
 		DisEldTimRev.push( DET );		
-
 		trkptDat1 = trkptDat2.slice();
 	}
 	DET = [0, 0, 0];
@@ -564,12 +580,8 @@ function get_tipixEle( tpX, tpY, tileidx ){
 	let pointer2, eledat;	
 	let tileTxt = tileObj[tileidx];
 	pointer = 0;
-	if ( tpY > 1){
-		for (let i = 0; i < tpY -1 ; i++){ pointer = tileTxt.indexOf("\n", pointer + 1); }
-	}
-	if ( tpX > 1){
-		for (let i = 0; i <tpX -1 ; i++){ pointer = tileTxt.indexOf(",", pointer + 1); }
-	}
+	if ( tpY > 1){ for (let i = 0; i < tpY -1 ; i++){ pointer = tileTxt.indexOf("\n", pointer + 1); } }
+	if ( tpX > 1){ for (let i = 0; i <tpX -1 ; i++){ pointer = tileTxt.indexOf(",", pointer + 1); } }
 	(tpX <= 255) ? pointer2 = tileTxt.indexOf(",", pointer+1): pointer2 = tileTxt.indexOf("\n", pointer+1);
 	( pointer == 0 ) ? pointer = 0: pointer = pointer + 1;
 	eledat = tileTxt.substring( pointer, pointer2);
@@ -633,11 +645,7 @@ function make_DLtile_lis(trkLinArr){
 		pArr = trkLinArr[i].slice();
 		strTil = pArr[5];
 		flg = 0;
-		for ( j = 0; j < tilesArr.length; j++ ){
-			if ( strTil === tilesArr[j] ){
-				flg = 1;
-			}
-		}
+		for ( j = 0; j < tilesArr.length; j++ ){ if ( strTil === tilesArr[j] ){ flg = 1; } }
 		if ( flg === 0 ){ tilesArr.push( strTil ); }
 	}
 	console.log("標高タイル数: " + tilesArr.length + "枚"); // for debug
@@ -652,6 +660,7 @@ function make_trkLinAry_reduce(){
 	let trkLinArr =[], trkdatArr = [];
 	pointer = 0;
 	trkpArr = get_trkptDat(readTxt, pointer);
+	trkpArr.length = 4; // get_trkptDatの名前出力追加によるtrkLinArrデータズレ防止 v31
 	trkdatArr = trkpArr.slice();
 	trkdatArr = trkdatArr.concat( latLon2tile(trkpArr[1], trkpArr[2], zoomVal) ); // 標高タイル座標を追加
 	trkdatArr.shift();
@@ -663,6 +672,9 @@ function make_trkLinAry_reduce(){
 		while ( AccDis <= dstp  ) { // trkpt間引きループ
 			pointer = trkpArr[0] + 1;
 			trkpArr = get_trkptDat(readTxt, pointer);
+			let trkpName = trkpArr[4]; // v31
+			trkpArr.length = 4; // get_trkptDatの名前出力追加によるtrkLinArrデータズレ防止 v31
+			if ( trkpName != "" ) {break;} // ヤマレコ地名付GPXの地名データスキップ防止 v31
 			if ( trkpArr[0] === -1) {break;}
 			let CurIdo = trkpArr[1]; let CurKeido = trkpArr[2];
 			AccDis = hubeny(PrevIdo, PrevKeido, CurIdo, CurKeido); // 起点のtrkptとの距離
@@ -687,10 +699,10 @@ function latLon2tile(latVal, lonVal, zoomVal){
 	let zoom = parseInt(zoomVal); // ズームレベル
   // ピクセル座標
 	let pX = parseInt(Math.pow(2, zoom + 7) * (lon / 180 + 1));
-    let pY = parseInt((Math.pow(2, zoom + 7) / Math.PI) * ((-1 * Math.atanh(Math.sin((Math.PI / 180) * lat))) + Math.atanh(Math.sin((Math.PI / 180) * L))));
+	let pY = parseInt((Math.pow(2, zoom + 7) / Math.PI) * ((-1 * Math.atanh(Math.sin((Math.PI / 180) * lat))) + Math.atanh(Math.sin((Math.PI / 180) * L))));
   // タイル X座標
-    let tX = parseInt(pX / 256);
-    let tY = parseInt(pY / 256);
+	let tX = parseInt(pX / 256);
+	let tY = parseInt(pY / 256);
   // タイル内ピクセル座標
 	let aX = pX % tX + 1;
 	let aY = pY % tY + 1;
@@ -714,24 +726,28 @@ function chg_spd(){
 }
 
 function get_trkptDat(entStr, pointer){
-// 文字列entStrのpinterの位置から<trkptを検索しtrkptの経度、緯度、標高を返す
-// 引数：(検索文字列、検索位置) 返値：[pointer, strLat, strLon, ele] "trkpt"が見つからない時はpointerに-1
+// 文字列entStrのpinterの位置から<trkptを検索しtrkptの経度、緯度、標高、名前(v31ヤマレコ用)を返す
+// 引数：(検索文字列、検索位置) 返値：[pointer, Lat, Lon, ele, strName] "trkpt"が見つからない時はpointerに-1
 	pointer = entStr.indexOf("<trkpt",pointer);
-	if (pointer === -1){ 
-		return trkpArr = [pointer, , , ]; 
-	}
+	if (pointer === -1){ return trkpArr = [pointer, , , ]; }
 	let trkptStr = entStr.substring(pointer, entStr.indexOf("</trkpt>",pointer)+8);
 	let Latpt = trkptStr.indexOf("lat=");
 	let Lonpt = trkptStr.indexOf("lon=");
 	strLat = trkptStr.substring( Latpt+5, trkptStr.indexOf('"', Latpt+5) );
 	strLon = trkptStr.substring( Lonpt+5, trkptStr.indexOf('"', Lonpt+5) );
-	let strEle;
+	let strEle; let strName;
 	if ( trkptStr.indexOf("<ele>") != -1 ){
 		strEle = trkptStr.substring(trkptStr.indexOf("<ele>")+5,trkptStr.indexOf("</ele>"));
 	}else{
 		strEle = "";
 	}
-	return [pointer, parseFloat(strLat), parseFloat(strLon), parseFloat(strEle)];
+	if ( trkptStr.indexOf("<name>") != -1 ){ // v31ヤマレコ用
+		strName = trkptStr.substring(trkptStr.indexOf("<name>")+6, trkptStr.indexOf("</name>"));
+		strName = strName.split("[")[0];
+	}else{
+		strName = "";
+	}
+	return [pointer, parseFloat(strLat), parseFloat(strLon), parseFloat(strEle), strName];
 }
 
 function hubeny(ido1,keido1,ido2,keido2){ 
@@ -809,7 +825,7 @@ function make_KLM(){
 	writeTex += '</Document>\n</kml>\n';
 }
 
-// GPX出力用テキスト作成
+// GPX出力用テキスト作成 (v3.0)
 function make_GPX(){
 	let Direc = document.selbttn2.Direc.value;
 	let timeObj =  new Date( document.getElementById("str_date").value + "T" + document.getElementById("str_time").value );
@@ -817,7 +833,6 @@ function make_GPX(){
  // ヘッダー&ウエイポイント記述
 	writeTex = '<?xml version="1.0" encoding="UTF-8"?>\n';
 	writeTex += '<gpx xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.topografix.com/GPX/1/0" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd" creator="https://github.com/guchi999">\n';
-
 	let wptNam = document.getElementById("start_nam").value;
 	if ( Direc === "revs" ){ wptNam = document.getElementById("goal_nam").value; }
 	writeTex += `<wpt lat="${ trkLinArr[0][0] }" lon="${ trkLinArr[0][1] }" >\n`;
@@ -833,6 +848,7 @@ function make_GPX(){
 			writeTex += `<name>${ wptNam }</name>\n<cmt>${ wptNam }</cmt>\n<desc>${ wptNam }</desc>\n</wpt>\n`;
 		}
 	}
+ // トラック記述
 	writeTex += `<trk><name>${document.getElementById("file_nam").value}</name><number>1</number>\n<trkseg>\n`;
 	if ( Direc === "forw" ){
 		for (let i = 0; i < trkLinArr.length; i++ ){
@@ -848,13 +864,12 @@ function make_GPX(){
 			writeTex += `<trkpt lat="${trkLinArr[i][0]}" lon="${trkLinArr[i][1]}">`;
 			writeTex += `<ele>${trkLinArr[i][6]}</ele><time>${timeStr}</time></trkpt>\n`;
 		}
-	}	
-	writeTex += `</trkseg>\n</trk>\n`;
-	writeTex += `</gpx>\n`;
+	}
+	writeTex += `</trkseg>\n</trk>\n</gpx>\n`;
 }
 
-function saveFile(){
 // ファイル出力
+function saveFile(){
 	if ( writeFilNam == ""){ alert("有効なGPXファイルが読み込まれていません"); return;}
 	writeFilNam = document.getElementById("file_nam").value;
 	chg_markTxt(markLis);
@@ -870,6 +885,64 @@ function saveFile(){
 	linkTag.setAttribute( linkTagAttr[0], objectURL );
 	linkTag.setAttribute( linkTagAttr[1], title ); 
 }
+
+// WP付GPX読み込み時のマーカーリスト作成(v31)
+function make_Wplist(entStr){
+	WpList = [], pointer = 0;
+	let WpList0 = [], nnn = 0;
+	do{
+		nnn++; if (nnn > 50) {break;} // 異常時ループ脱出
+		pointer = entStr.indexOf("<wpt", pointer);
+		if ( pointer != -1 ){
+			let Latpt = entStr.indexOf( "lat=",  pointer);
+			let Lonpt = entStr.indexOf( "lon=", pointer );
+			let LatStr = entStr.substring( Latpt+5, entStr.indexOf('"', Latpt + 5) );
+			let LonStr = entStr.substring( Lonpt+5, entStr.indexOf('"', Lonpt + 5) );
+			let nameStr = entStr.substring( entStr.indexOf( "<name>", pointer  ) + 6, entStr.indexOf( "</name>", pointer  ) );
+			WpList0.push( [nameStr, LatStr, LonStr] );
+			pointer = Lonpt;
+		}
+	} while ( pointer != -1 );
+	if (WpList0.length != 0 ){ WpListFormat( WpList0 ); }
+}
+
+// ヤマレコ地名付GPX読み込み時のマーカーリスト作成(v31)
+function make_Wplist_byYR(entStr){
+	if ( WpList.length != 0 ){ return; }
+	WpList = [];	pointer = 0;
+	let WpList0 = [];
+	while ( pointer != -1 ){
+		let trkptDat = get_trkptDat(entStr, pointer);
+		pointer = trkptDat[0];	let nameStr = trkptDat[4];
+		if ( pointer != -1 ){
+			 if ( nameStr != "" ){
+			 	let dupNameFlg = 0;
+			 	for ( let i = 0; i < WpList0.length ; i++ ){ if ( WpList0[ i ][0] ===  nameStr ){ dupNameFlg = 1; } }
+				if ( dupNameFlg === 0 ){
+					LatStr = String( trkptDat[1] ); 	LonStr = String( trkptDat[2] );
+				 	WpList0.push( [nameStr, LatStr, LonStr] );
+			 	}
+			 }
+			pointer ++;
+		}
+	}
+	if (WpList0.length != 0 ){ WpListFormat( WpList0 ); }
+}
+
+// wptリスト(WpList0)の緯度経度をLinePlotのインデックスに変換(v31)
+function WpListFormat( WpList0 ){
+	for ( let i = 0; i < WpList0.length; i++ ){
+		let wpLatlon = WpList0[i][1] + "-" + WpList0[i][2];
+		for ( let j = 0; j < LinePlot.length; j++ ){
+			let LatlonStr = LinePlot[j][0] + "-" + LinePlot[j][1];
+			if ( wpLatlon === LatlonStr ){
+				WpList.push( [ WpList0[i][0], j ] );
+				break;
+			}
+		}
+	}
+}
+
 
 </script>
 </body>
