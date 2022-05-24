@@ -55,7 +55,7 @@
 
 </head>
 <body>
-	<span>【コースタイム見積 V3.2】<span><br>
+	<span>【コースタイム見積 V3.3】<span><br>
 	<span><b>画面にルートファイル(GPX、KML)をドロップするか、ファイル選択ボタンで開くウインドウで選んでください。</b></span>
 	<input type="file" multiple id="selfile"><br>
 	<div id="mapWin1" style="width:750px;height:500px"></div>
@@ -691,6 +691,27 @@ function make_trkLinAry_reduce(readTxt){
 			trkdatArr = trkdatArr.concat( latLon2tile(trkpArr[1], trkpArr[2], zoomVal) ); // 標高タイル座標を追加
 			trkdatArr.shift();
 			trkLinArr.push( trkdatArr );
+		}
+	}
+	for ( let i = 0; i < WpList.length; i++ ){ // ルート外をれているwptのLaLonをtrkLinArrに追加(v33)
+		let MinIdx = 0, d1 = 800;
+		for ( let j = 0; j < trkLinArr.length; j++ ){
+			let d2 = Math.abs( WpList[ i ][1] - trkLinArr[ j ][0] ) ** 2 + Math.abs( WpList[ i ][2] - trkLinArr[ j ][1]  ) ** 2;
+			if ( d2 === 0 ){ MinIdx = j; break; }
+			if (d1 > d2 ){ MinIdx = j; d1 = d2; }
+		}
+		if ( d1 != 0 ){
+			let lat = Number(  WpList[ i ][1] ), lon = Number( WpList[ i ][2] );
+			if ( MinIdx === 0 ){ 
+				trkLinArr.unshift( [lat, lon, trkLinArr[0][2], trkLinArr[0][3], trkLinArr[0][4],  trkLinArr[0][5] ] ); 
+			}else if ( MinIdx === trkLinArr.length -1 ){
+				 trkLinArr.push( [ lat, lon, trkLinArr[MinIdx][2], trkLinArr[MinIdx][3], trkLinArr[MinIdx][4],  trkLinArr[MinIdx][5] ] ); 
+			}else{
+				let d3 = Math.abs( WpList[ i ][0] - trkLinArr[ MinIdx -1 ][0] ) ** 2 + Math.abs( WpList[ i ][1] - trkLinArr[ MinIdx -1 ][1]  ) ** 2;
+				let d4 = Math.abs( WpList[ i ][0] - trkLinArr[ MinIdx +1 ][0] ) ** 2 + Math.abs( WpList[ i ][1] - trkLinArr[ MinIdx +1 ][1]  ) ** 2;
+				let addTrkpt = [ lat, lon, trkLinArr[MinIdx][2], trkLinArr[MinIdx][3], trkLinArr[MinIdx][4], trkLinArr[MinIdx][5] ];
+				( d3 >= d4 ) ? trkLinArr.splice( MinIdx -1, 0, addTrkpt ): trkLinArr.splice( MinIdx +1, 0, addTrkpt ); 
+			}
 		}
 	}
 	console.log("trkLinArr.length = " + trkLinArr.length);  // for debug
