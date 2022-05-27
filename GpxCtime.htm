@@ -56,7 +56,7 @@
 </head>
 <body>
 	<span>【コースタイム見積 V3.3】<span><br>
-	<span><b>画面にルートファイル(GPX、KML)をドロップするか、ファイル選択ボタンで開くウインドウで選んでください。</b></span>
+	<span><b>地図画面にルートファイル(GPX、KML)をドロップするか、ファイル選択ボタンで開くウインドウで選んでください。</b></span>
 	<input type="file" multiple id="selfile"><br>
 	<div id="mapWin1" style="width:750px;height:500px"></div>
 
@@ -138,7 +138,7 @@
 
 <script>
 
-var readTxt = ""; // 入力ファイル
+var readTxt = ""; // 入力ファイル文字列
 var writeFilNam = ""; // 拡張子無しファイル名
 var trkLinArr; // trkptデータ配列  [ Lat, Lon, 入力ファイル標高, ピクセル座標, タイル座標X-Y(文字列), タイル標高, 距離, 順時間, 逆時間 ]
 var tilesArr; // 必要標高タイルのリスト [ タイルX座標-タイルY座標, ... ]
@@ -151,9 +151,9 @@ var zoomLevel;
 var LinePlot = []; // 軌跡表示用緯度経度 [ [Lat1, Lon1], [Lat2, Lon2], ...  [LatN, LonN] ];	
 var mymap;
 var markNum = 0; // マーカー連番用
-var markLis = {}; // マーカーのリスト { Mark番号:[マーカー名, trkLinArrインデックス], ....}
+var markLis = {}; // マーカーリスト { Mark番号:[マーカー名, trkLinArrインデックス], ....}
 var SDmarkLis = []; // ソートしたマーカーリスト
-var WpList = [];
+var WpList = []; // ウェイポイントリスト [ポイント名, trkLinArrインデックス]
 
 window.onload = function() { // 初期画面の設定
 	let today = new Date();
@@ -236,7 +236,6 @@ function after_file_read(readTxt, GpxFileName){
 		tilesArr = make_DLtile_lis(trkLinArr);
 		tile_download(tilesArr);
 		LinePlot = make_linePlot(trkLinArr);
-		make_Wplist(readTxt); // WP付ファイル読み込み時のマーカーリスト作成(v31)
 		make_Wplist_byYR(readTxt); // ヤマレコ地名付GPX読み込み時のマーカーリスト作成(v31)
 		DrwMap();
 	}else{
@@ -676,8 +675,8 @@ function make_trkLinAry_reduce(readTxt){
 			trkpArr = get_trkptDat(readTxt, pointer);
 			let trkpName = trkpArr[4]; // v31
 			trkpArr.length = 4; // get_trkptDatの名前出力追加によるtrkLinArrデータズレ防止 v31
-			let flg = 0; // wptスキップ防止 v32
-			for ( let i = 0; i < WpList.length; i++ ){
+			let flg = 0; // v32
+			for ( let i = 0; i < WpList.length; i++ ){ // wptスキップ防止 v32
 				if ( WpList[ i ][1] ===  String( trkpArr[1] ) && WpList[ i ][2] === String( trkpArr[2] ) ){ flg = 1; }
 			}
 			if ( flg != 0 ) {break;} // wptスキップ防止 v32
@@ -693,7 +692,7 @@ function make_trkLinAry_reduce(readTxt){
 			trkLinArr.push( trkdatArr );
 		}
 	}
-	for ( let i = 0; i < WpList.length; i++ ){ // ルート外をれているwptのLaLonをtrkLinArrに追加(v33)
+	for ( let i = 0; i < WpList.length; i++ ){ // ルート外れwptをトラックに乗せる(用v33)
 		let MinIdx = 0, d1 = 800;
 		for ( let j = 0; j < trkLinArr.length; j++ ){
 			let d2 = Math.abs( WpList[ i ][1] - trkLinArr[ j ][0] ) ** 2 + Math.abs( WpList[ i ][2] - trkLinArr[ j ][1]  ) ** 2;
@@ -701,17 +700,7 @@ function make_trkLinAry_reduce(readTxt){
 			if (d1 > d2 ){ MinIdx = j; d1 = d2; }
 		}
 		if ( d1 != 0 ){
-			let lat = Number(  WpList[ i ][1] ), lon = Number( WpList[ i ][2] );
-			if ( MinIdx === 0 ){ 
-				trkLinArr.unshift( [lat, lon, trkLinArr[0][2], trkLinArr[0][3], trkLinArr[0][4],  trkLinArr[0][5] ] ); 
-			}else if ( MinIdx === trkLinArr.length -1 ){
-				 trkLinArr.push( [ lat, lon, trkLinArr[MinIdx][2], trkLinArr[MinIdx][3], trkLinArr[MinIdx][4],  trkLinArr[MinIdx][5] ] ); 
-			}else{
-				let d3 = Math.abs( WpList[ i ][0] - trkLinArr[ MinIdx -1 ][0] ) ** 2 + Math.abs( WpList[ i ][1] - trkLinArr[ MinIdx -1 ][1]  ) ** 2;
-				let d4 = Math.abs( WpList[ i ][0] - trkLinArr[ MinIdx +1 ][0] ) ** 2 + Math.abs( WpList[ i ][1] - trkLinArr[ MinIdx +1 ][1]  ) ** 2;
-				let addTrkpt = [ lat, lon, trkLinArr[MinIdx][2], trkLinArr[MinIdx][3], trkLinArr[MinIdx][4], trkLinArr[MinIdx][5] ];
-				( d3 >= d4 ) ? trkLinArr.splice( MinIdx -1, 0, addTrkpt ): trkLinArr.splice( MinIdx +1, 0, addTrkpt ); 
-			}
+			WpList[ i ] = [ WpList[ i ][0], MinIdx ];
 		}
 	}
 	console.log("trkLinArr.length = " + trkLinArr.length);  // for debug
